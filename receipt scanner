@@ -1,0 +1,67 @@
+import uuid
+from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
+
+try:
+    from escpos.printer import Usb
+except ImportError:
+    Usb = None
+
+class CompanyPaymentSystem:
+    def __init__(self, v_id=0x04b8, p_id=0x0202):
+        self.ledger = {}
+        self.audit_log = []
+        try:
+            # Initialize connection using Vendor and Product IDs
+            self.printer = Usb(v_id, p_id) if Usb else None
+        except:
+            self.printer = None
+
+    def register_entity(self, name, funds=0.00):
+        self.ledger[name] = Decimal(str(funds)).quantize(Decimal("0.00"), ROUND_HALF_UP)
+
+    def print_receipt(self, tx):
+        if not self.printer: return
+        p = self.printer
+        p.hw("init")
+        p.set(align='center', width=2, height=2)
+        p.text("RECEIPT\n")
+        p.set(align='center', width=1, height=1)
+        p.text(f"ID: {tx['tx_id']}\n{'-'*32}\n")
+        p.set(align='left')
+        p.text(f"FROM: {tx['sender']}\nTO:   {tx['receiver']}\nCAT:  {tx['category']}\n")
+        p.set(align='right', width=2, height=1)
+        p.text(f"TOTAL: ${tx['amount']:.2f}\n")
+        p.cashdraw(2) # Pops cash drawer
+        p.cut()
+
+    def execute_transaction(self, sender, receiver, amount, category="Operating"):
+        amt = Decimal(str(amount)).quantize(Decimal("0.00"), ROUND_HALF_UP)
+        if self.ledger.get(sender, 0) < amt: return {"status": "declined"}
+        
+        self.ledger[sender] -= amt
+        self.ledger[receiver] = self.ledger.get(receiver, Decimal("0.00")) + amt
+        
+        receipt = {
+            "tx_id": f"TXN-{uuid.uuid4().hex[:8].upper()}",
+            "timestamp": datetime.now().isoformat(),
+            "sender": sender,
+            "receiver": receiver,
+            "amount": float(amt),
+            "category": category,
+            "status": "APPROVED"
+        }
+        
+        self.audit_log.append(receipt)
+        self.print_receipt(receipt)
+        return receipt
+
+# --- Implementation ---
+sys = CompanyPaymentSystem(0x04b8, 0x0202)
+sys.register_entity("MAIN_TREASURY", 5000.00)
+sys.register_entity("RENEWAL_DEPT", 0.00)
+
+# Triggers logic and physical print
+sys.execute_transaction("MAIN_TREASURY", "RENEWAL_DEPT", 125.50, "Renewed Item")
+
+
