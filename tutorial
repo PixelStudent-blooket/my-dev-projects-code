@@ -1,0 +1,12 @@
+# 1. Create the folder
+mkdir corp-engine
+cd corp-engine
+
+# 2. Create the virtual environment (keeps dependencies isolated)
+python -m venv venv
+
+# 3. Activate the environment
+# For Windows:
+venv\Scripts\activate
+# For Mac/Linux:
+source venv/bin/activate
