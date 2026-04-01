@@ -1,0 +1,74 @@
+import uuid
+from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
+
+class CompanyPaymentSystem:
+    def __init__(self):
+        # In production, replace dictionaries with a SQL database (PostgreSQL/MySQL)
+        self.ledger = {}  # { account_id: Decimal balance }
+        self.audit_log = []
+
+    def register_entity(self, entity_name, initial_funds=0.00):
+        """Registers a department, vendor, or employee account."""
+        amount = Decimal(str(initial_funds)).quantize(Decimal("0.00"), rounding=ROUND_HALF_UP)
+        if entity_name in self.ledger:
+            return {"status": "error", "message": "Entity already exists."}
+        self.ledger[entity_name] = amount
+        return {"status": "success", "entity": entity_name, "balance": float(amount)}
+
+    def execute_transaction(self, sender, receiver, amount, category="Operating"):
+        """Internal ledger transfer with basic validation."""
+        amount = Decimal(str(amount)).quantize(Decimal("0.00"), rounding=ROUND_HALF_UP)
+
+        # 1. Validation
+        if amount <= 0:
+            return {"status": "error", "message": "Invalid amount."}
+        if sender not in self.ledger or receiver not in self.ledger:
+            return {"status": "error", "message": "Account(s) not found."}
+        if self.ledger[sender] < amount:
+            return {"status": "error", "message": "Insufficient corporate funds."}
+
+        # 2. Atomic Update (Simulated)
+        self.ledger[sender] -= amount
+        self.ledger[receiver] += amount
+
+        # 3. Audit Trail
+        receipt = {
+            "tx_id": f"TXN-{uuid.uuid4().hex[:8].upper()}",
+            "timestamp": datetime.now().isoformat(),
+            "sender": sender,
+            "receiver": receiver,
+            "amount": float(amount),
+            "category": category,
+            "status": "APPROVED"
+        }
+        self.audit_log.append(receipt)
+        return {"status": "success", "data": receipt}
+
+    def get_statement(self, entity_name):
+        """Retrieves balance and history for a specific entity."""
+        if entity_name not in self.ledger:
+            return None
+        history = [tx for tx in self.audit_log if tx['sender'] == entity_name or tx['receiver'] == entity_name]
+        return {
+            "entity": entity_name,
+            "current_balance": float(self.ledger[entity_name]),
+            "transactions": history
+        }
+
+# --- Quick Implementation Example ---
+corp_pay = CompanyPaymentSystem()
+
+# Setup Accounts
+corp_pay.register_entity("HQ_MAIN_TREASURY", 1000000.00)
+corp_pay.register_entity("MARKETING_DEPT", 0.00)
+corp_pay.register_entity("EXTERNAL_VENDOR_ADCO", 0.00)
+
+# Process Internal Budget Allocation
+corp_pay.execute_transaction("HQ_MAIN_TREASURY", "MARKETING_DEPT", 25000.50, "Budget Allocation")
+
+# Process Vendor Payment
+result = corp_pay.execute_transaction("MARKETING_DEPT", "EXTERNAL_VENDOR_ADCO", 1200.75, "Vendor Invoice #882")
+
+print(f"Transaction Result: {result['status']}")
+print(f"Marketing Balance: ${corp_pay.ledger['MARKETING_DEPT']}")
