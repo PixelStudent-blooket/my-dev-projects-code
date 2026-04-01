@@ -1,0 +1,124 @@
+import uuid
+import json
+import logging
+from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
+
+# Configure Corporate Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+try:
+    from escpos.printer import Usb
+except ImportError:
+    Usb = None
+
+class CorporateEngine:
+    """The backbone of the company's financial and entity management."""
+    
+    def __init__(self, company_name="MainCorp", master_pin="1234"):
+        self.company_name = company_name
+        self.__master_pin = str(master_pin)
+        self.ledger = {}        # Account balances
+        self.audit_trail = {}   # Permanent transaction history
+        self.printer = self._init_printer()
+
+    def _init_printer(self, v_id=0x04b8, p_id=0x0202):
+        """Initializes hardware printing or falls back to log-only."""
+        if Usb:
+            try:
+                return Usb(v_id, p_id)
+            except Exception:
+                logging.warning(f"Hardware Printer {hex(v_id)} not found. Using Virtual Logs.")
+        return None
+
+    # --- ENTITY MANAGEMENT ---
+    def onboard_entity(self, entity_id, initial_capital=0.00):
+        """Registers a new department, employee, or vendor."""
+        if entity_id in self.ledger:
+            return {"status": "ERROR", "msg": "Entity already exists."}
+        
+        amount = Decimal(str(initial_capital)).quantize(Decimal("0.00"), ROUND_HALF_UP)
+        self.ledger[entity_id] = amount
+        logging.info(f"ONBOARDED: {entity_id} with ${amount}")
+        return {"status": "SUCCESS", "entity": entity_id}
+
+    # --- TRANSACTION ENGINE ---
+    def process_payment(self, sender, receiver, amount, memo="Business Expense"):
+        """Executes a secure transfer between two internal entities."""
+        # Validation
+        if sender not in self.ledger or receiver not in self.ledger:
+            return {"status": "DECLINED", "reason": "Unregistered Entity"}
+
+        amt = Decimal(str(amount)).quantize(Decimal("0.00"), ROUND_HALF_UP)
+        
+        if self.ledger[sender] < amt:
+            return {"status": "DECLINED", "reason": "Insufficient Liquidity"}
+
+        # Execution
+        tx_id = f"{self.company_name[:3]}-{uuid.uuid4().hex[:6].upper()}"
+        self.ledger[sender] -= amt
+        self.ledger[receiver] += amt
+
+        receipt = {
+            "tx_id": tx_id,
+            "timestamp": datetime.now().isoformat(),
+            "sender": sender,
+            "receiver": receiver,
+            "amount": float(amt), 
+            "memo": memo,
+            "status": "COMPLETED"
+        }
+        
+        self.audit_trail[tx_id] = receipt
+        self._generate_receipt(receipt)
+        return receipt
+
+    def authorize_reversal(self, tx_id, admin_pin):
+        """Rolls back a transaction using administrative override."""
+        if str(admin_pin) != self.__master_pin:
+            return {"status": "AUTH_FAILURE", "reason": "Invalid Admin PIN"}
+        
+        tx = self.audit_trail.get(tx_id)
+        if not tx or tx.get("reversed"):
+            return {"status": "ERROR", "reason": "Invalid or already reversed TX"}
+
+        # Reverse balances
+        amt = Decimal(str(tx["amount"]))
+        self.ledger[tx["receiver"]] -= amt
+        self.ledger[tx["sender"]] += amt
+        
+        tx["reversed"] = True
+        tx["status"] = "VOIDED"
+        
+        logging.info(f"VOIDED: {tx_id} by Administrator")
+        return {"status": "SUCCESS", "void_id": tx_id}
+
+    # --- REPORTING ---
+    def _generate_receipt(self, data):
+        """Prints physical receipt or logs to terminal."""
+        output = f"\n--- {self.company_name} RECEIPT ---\nID: {data['tx_id']}\nFROM: {data['sender']}\nTO: {data['receiver']}\nAMT: ${data['amount']}\nMEMO: {data['memo']}\n----------------------"
+        
+        if self.printer:
+            self.printer.text(output)
+            self.printer.cut()
+        else:
+            print(output)
+
+    def get_financial_snapshot(self):
+        """Returns the current state of all company accounts."""
+        return {entity: float(bal) for entity, bal in self.ledger.items()}
+
+# --- INITIALIZATION EXAMPLE ---
+if __name__ == "__main__":
+    company = CorporateEngine("TechNova_Systems", master_pin="8888")
+    
+    # Setup Departments
+    company.onboard_entity("TREASURY", 10000.00)
+    company.onboard_entity("MARKETING", 0.00)
+    
+    # Run a Test Transaction
+    company.process_payment("TREASURY", "MARKETING", 2500.50, "Q1 Ad Budget")
+    
+    print("\nCurrent Balances:", company.get_financial_snapshot())
+
+
