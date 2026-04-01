@@ -1,0 +1,13 @@
+import os
+from dotenv import load_dotenv
+
+def load_config():
+    """Loads environment variables for the app."""
+    load_dotenv()
+    return {
+        "PRINTER_ID": int(os.getenv("PRINTER_ID", "0x04b8"), 16),
+        "API_KEY": os.getenv("COMPANY_API_KEY"),
+        "ENV": os.getenv("APP_ENV", "development")
+    }
+
+
