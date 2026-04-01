@@ -1,0 +1,19 @@
+company-project/
+├── .gitignore               # Files to ignore (venv, pycache) 
+├── pyproject.toml           # Modern standard for dependencies & metadata
+├── README.md                # Setup and usage instructions 
+├── Makefile                 # Shortcuts for 'make install', 'make test'
+├── src/                     # All actual code goes here
+│   └── project_name/        # Your main package
+│       ├── __init__.py
+│       ├── __main__.py      # Entry point for 'python -m project_name'
+│       ├── api/             # Routes and API logic
+│       ├── core/            # Config, logging, and constants
+│       ├── domain/          # Pure business logic (entities/models)
+│       └── infrastructure/  # Database, external API clients, storage
+├── tests/                   # Unit and integration tests
+│   ├── conftest.py
+│   └── test_logic.py
+└── scripts/                 # Maintenance or migration scripts
+
+
