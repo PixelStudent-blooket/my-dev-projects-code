@@ -1,0 +1,18 @@
+# --- Implementation ---
+sys = CompanyPaymentSystem(0x04b8, 0x0202)
+
+# 1. Register accounts with starting balances
+sys.register_entity("MAIN_TREASURY", 5000.00)
+sys.register_entity("OFFICE_SUPPLIES_INC", 0.00)
+
+# 2. Execute a transaction
+# This will update the ledger, log the audit, and try to print/pop the drawer
+result = sys.execute_transaction(
+    sender="MAIN_TREASURY", 
+    receiver="OFFICE_SUPPLIES_INC", 
+    amount=154.75, 
+    category="Equipment"
+)
+
+print(f"Transaction Status: {result['status']}")
+print(f"Treasury Balance: ${sys.ledger['MAIN_TREASURY']}")
